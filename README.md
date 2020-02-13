@@ -32,7 +32,7 @@ reliable than applications that are directly dependent upon servers. By using a 
 applications are instantaneously responsive and reliable in any network conditions.
 
 Unfortunately, offline-first applications are also really hard to build. Bidirectional
-sync is a famously difficult problem, and one which has elluded satisfying general
+sync is a famously difficult problem, and one which has eluded satisfying general
 solutions. Existing attempts to build general solutions (Apple CloudKit, Android Sync, Google Cloud Firestore, Realm, PouchDB) all have one or more of the following serious problems:
 
 * **Non-Convergence.** Many solutions do not guarantee that clients end up with a view of the state that is consistent with the server. It is up to developers to carefully construct a patch to send to clients that will bring them into the correct state. Client divergence is common and difficult to detect or fix.
@@ -40,33 +40,43 @@ solutions. Existing attempts to build general solutions (Apple CloudKit, Android
 * **No Atomic Transactions.** Some solutions claim automatic conflict resolution, but lack atomic transactions. Without transactions, automatic merge means that any two sequences of writes might interleave. This is analogous to multithreaded programming without locks.
 * **Difficult Integration with Existing Applications.** Some solutions effectively require a full committment to a non-standard or proprietary backend database or system design, which is not tractable for existing systems, and risky even for new systems.
 
-For these reasons, existing products are often not practical options for application developers, leaving them
-forced to develop their own sync protocol at the application layer if they want an offline-first app. Given how expensive and risky this is, most applications delay offline-first until the business is very large and successful. Even then, many attempts fail.
+For these reasons, existing products are often not practical options for application developers, leading them
+to develop their own sync protocol at the application layer if they want an offline-first app. Given how expensive and risky this is, most applications delay offline-first until the business is very large and successful. Even then, many attempts fail.
 
 # Introducing Replicache
 
-Replicache dramatically reduces the difficulty of building offline-first applications.
+Replicache dramatically reduces the difficulty of building offline-first applications. Replicache's goals are to provide:
+1. a natural offline-first programming model that is easy to reason about that requires
+1. minimal changes to and opinions about existing database implementations, schemas, and deployments
 
 The key features that contribute to Replicant's leap in usability are:
 
-* **Guaranteed Convegence**: Replicache guarantees that after each sync, a client will exactly match the state of the server. Developers do not need to manually track changes or construct diffs.
-* **Transactions**: Replicache models change in the system as full [ACID](https://en.wikipedia.org/wiki/ACID_(computer_science)) multikey read/write 
-transactions. On the server, transactions are expected to be implemented as REST or GraphQL APIs. On the client, transactions in Replicache are expressed as arbitrary functions, which are executed serially and isolated from 
-each other.
-* **Much Easier Conflict-Resolution**: Replicant is a [Convergent Causal Consistent](https://jepsen.io/consistency/models/causal) system: after synchronization, transactions are guaranteed to have run in the same order on all nodes, resulting in the same database state. This feature, combined with transaction atomicity,
-makes conflict resolution much easier. Conflicts do still happen, but in many cases resolution is a natural side-effect of serialized atomic transactions. In the remaining cases, reasoning about conflicts is made far simpler. These claims have been reviewed by independent Distributed Systems expert Kyle Kingsbury of Jepsen. See [Jepsen Summary](jepsen-summary.md) and [Jepsen Article](jepsen-article.pdf).
-* **Standard Data Model**: The Replicant data model is a standard document database. From an API perspective, it's
-very similar to Google Cloud Firestore, MongoDB, Couchbase, FaunaDB, and many others. You don't need to learn anything new, 
+* **Easy Integration**: Replicache runs alongside an existing server-side database. Its job is to provide bidirectional conflict-free sync between clients and servers. It does not take ownership of the data. This makes it very easy to adopt: you can try it for just a small piece of functionality, or a small slice of users, while leaving the rest of your application the same.
+* **Standard Data Model**: The Replicache data model is a standard document database. From an API perspective, it's
+very similar to Firestore, MongoDB, Couchbase, FaunaDB, and many others. You don't need to learn anything new, 
 and can build arbitrarily complex data structures on this primitive that are still conflict-free.
-* **Easy Integration**: Replicant is a simple primitive that runs along side any existing stack. Its only job is to provide bidirectional conflict-free sync between clients and servers. This makes it very easy to adopt: you can try it for just a small piece of functionality, or a small slice of users, while leaving the rest of your application the same.
+* **Guaranteed Convegence**: The existing database is the single source of truth and Replicache guarantees that after a client sync the client's state will exactly match that of the server. Developers do not need to manually track changes or construct diffs on either the client or the server.
+* **Transactions**: Replicache provides full [ACID](https://en.wikipedia.org/wiki/ACID_(computer_science)) multikey read/write transactions. On the server side, transactions are implemented as REST or GraphQL APIs. On the client, transactions are implemented as deterministic programmatic functions, which are executed serially and isolated from each other.
+* **Much Easier Conflict-Resolution**: Replicache is a [Convergent Causal Consistent](https://jepsen.io/consistency/models/causal) system: after synchronization, transactions are guaranteed to have run in the same order on all nodes, resulting in the same database state. This feature, combined with transaction atomicity,
+makes conflict resolution much easier. Conflicts do still happen, but in many cases resolution is a natural side-effect of serialized atomic transactions. In the remaining cases, reasoning about conflicts is made far simpler. These claims have been reviewed by independent Distributed Systems expert Kyle Kingsbury of Jepsen. See [Jepsen Summary](jepsen-summary.md) and [Jepsen Article](jepsen-article.pdf).
 
 # System Overview
+
+Replicache is a transaction synchronization, scheduling, and execution layer that runs in a mobile app and alongside an existing server-side key/value database. It takes a page from [academic](https://www.microsoft.com/en-us/research/publication/unbundling-transaction-services-in-the-cloud/) [research](http://cs.yale.edu/homes/thomson/publications/calvin-sigmod12.pdf) that separates the transaction layer from the data or physical storage layer. The piece in the mobile app is the *client* and the existing server-side database is the *storage layer*.
 
 ![Diagram](./diagram.png)
 
 ## Data Model
 
-Replicache is concerned with synchronizing updates to a user's *state*. The state is a sorted map of key/value pairs. Keys are arbitrary byte strings, values are JSON.
+Replicache synchronizes updates to per-user *state* across an arbitrary number of clients. The state is a sorted map of key/value pairs. Keys are byte strings, values are JSON.
+
+## The Big Picture
+
+The Replicache client maintains a local cache of the user's state against which the application runs read and write transactions. Transactions run immediately against the local state and write transactions are queued as *pending* application on the server. Periodically the client *syncs* to a *Replicache server*, transmitting pending transactions to be applied and receiving updated state in response. 
+
+The Replicache server is a proxy in front of the storage layer that makes the downstream updates to the client more efficient. During sync the Replicache server applies the pending transactions received from the client to the storage layer and then fetches the resulting state from the storage layer. It diffs the new state with what the client has (if anything), and sends the delta downstream to the client.
+
+A key feature that makes Replicache flexible and easy to adopt is that Replicache does not take ownership of the data. The storage layer owns the data and is the source of truth. Replicache runs alongside an existing document database (storage layer) and requires only minimal changes to it. Processes that Replicache knows nothing about can mutate state in the storage layer and Replicache clients will converge on the storage layer's canonical state.
 
 ## TransactionIDs
 
