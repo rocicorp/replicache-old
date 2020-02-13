@@ -45,9 +45,9 @@ to develop their own sync protocol at the application layer if they want an offl
 
 # Introducing Replicache
 
-Replicache dramatically reduces the difficulty of building offline-first applications. Replicache's goals are to provide:
-1. a natural offline-first programming model that is easy to reason about that requires
-1. minimal changes to and opinions about existing database implementations, schemas, and deployments
+Replicache dramatically reduces the difficulty of building offline-first applications. Replicache's goals are:
+1. a truly offline-first programming model that is natural and easy to reason about
+1. maximize compatability with existing application infrastructure
 
 The key features that contribute to Replicant's leap in usability are:
 
@@ -72,11 +72,11 @@ Replicache synchronizes updates to per-user *state* across an arbitrary number o
 
 ## The Big Picture
 
-The Replicache client maintains a local cache of the user's state against which the application runs read and write transactions. Transactions run immediately against the local state and write transactions are queued as *pending* application on the server. Periodically the client *syncs* to a *Replicache server*, transmitting pending transactions to be applied and receiving updated state in response. 
+The Replicache client maintains a local cache of the user's state against which the application runs read and write transactions. Both read and write transactions run immediately against the local state and write transactions are additionally queued as *pending* application on the server. Periodically the client *syncs* to a *Replicache server*, transmitting pending transactions to be applied and receiving updated state in response. 
 
-The Replicache server is a proxy in front of the storage layer that makes the downstream updates to the client more efficient. During sync the Replicache server applies the pending transactions received from the client to the storage layer and then fetches the resulting state from the storage layer. It diffs the new state with what the client has (if anything), and sends the delta downstream to the client.
+The Replicache server is a proxy in front of the storage layer that makes the downstream updates to the client more efficient. During sync the Replicache server applies the pending transactions received from the client to the storage layer and then fetches the resulting state from the storage layer. It diffs the new state with what the client has and sends the delta downstream to the client.
 
-A key feature that makes Replicache flexible and easy to adopt is that Replicache does not take ownership of the data. The storage layer owns the data and is the source of truth. Replicache runs alongside an existing document database (storage layer) and requires only minimal changes to it. Processes that Replicache knows nothing about can mutate state in the storage layer and Replicache clients will converge on the storage layer's canonical state.
+A key feature that makes Replicache flexible and easy to adopt is that Replicache does not take ownership of the data. The storage layer owns the data and is the source of truth. Replicache runs alongside an existing document database (storage layer) and requires only minimal changes to it. Processes that Replicache knows nothing about can mutate state in the storage layer and Replicache clients will converge on the storage layer's canonical state and correctly apply client changes on top of it.
 
 ## TransactionIDs
 
