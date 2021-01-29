@@ -69,7 +69,7 @@ as outlined below.
 
 #### If your Client View is publicly accessible...
 
-[Sign up for a Replicache account](https://diff-server.rocicorp.now.sh/signup)
+[Sign up for a Replicache account](https://serve.replicache.dev/signup)
 if you have not already. Note your `Account ID`. You will need to pass it to the
 Diff Server when manually `curl`ing requests below and in the `diffServerAuth`
 field of the
@@ -110,7 +110,7 @@ CLIENT_VIEW=<Client View URL>
 # The value of the Authorization HTTP header to send in the Client View request to your
 # service, identifying the user to your service.
 CLIENT_VIEW_AUTH=<Client View Authorization>
-# If you are using the Diff Server service, https://diff-server.rocicorp.now.sh/pull.
+# If you are using the Diff Server service, https://serve.replicache.dev/pull.
 # If you are running the Diff Server yourself, its address, e.g. http://localhost:7001/pull.
 DIFF_SERVER=<Diff Server URL>
 # The Account ID assigned during the signup step above if using the Diff Server service,
@@ -253,7 +253,7 @@ Here's a bash transcript demonstrating a series of requests Replicache might mak
 ```bash
 BATCH=https://replicache-sample-todo.now.sh/serve/replicache-batch
 CLIENT_VIEW=https://replicache-sample-todo.now.sh/serve/replicache-client-view
-DIFF_SERVER=https://diff-server.rocicorp.now.sh/pull
+DIFF_SERVER=https://serve.replicache.dev/pull
 ACCOUNT_ID=1 # The Replicache TODO sample account.
 
 NEW_USER_EMAIL=$RANDOM@example.com
